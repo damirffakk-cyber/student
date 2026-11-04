@@ -1,0 +1,329 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Catch-All Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ----------------------------------------------------
+    // GLOBAL HELPERS
+    // ----------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.:]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email in ["ddauenov853@gmail.com", "damirffakk@gmail.com"] && request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "ADMIN")
+      );
+    }
+
+    function isTeacher() {
+      return isSignedIn() && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "TEACHER" ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "ADMIN"))
+      );
+    }
+
+    // ----------------------------------------------------
+    // SCHEMA VALIDATION HELPERS
+    // ----------------------------------------------------
+    function isValidUser(data) {
+      return data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
+             data.email is string && data.email.size() <= 128 &&
+             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 150 &&
+             data.role in ['STUDENT', 'TEACHER', 'ADMIN'] &&
+             data.status in ['ACTIVE', 'PENDING', 'DISABLED'] &&
+             (!('groupId' in data) || data.groupId == null || (data.groupId is string && data.groupId.size() <= 64)) &&
+             (!('studentId' in data) || data.studentId == null || (data.studentId is string && data.studentId.size() <= 64)) &&
+             (!('phone' in data) || data.phone == null || (data.phone is string && data.phone.size() <= 32)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidGroup(data) {
+      return data.groupId is string && data.groupId.size() > 0 && data.groupId.size() <= 64 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 64 &&
+             data.code is string && data.code.size() > 0 && data.code.size() <= 32 &&
+             (!('specialty' in data) || (data.specialty is string && data.specialty.size() <= 128)) &&
+             (!('studentCount' in data) || data.studentCount is int) &&
+             (!('teacherIds' in data) || data.teacherIds is list) &&
+             (!('subjectIds' in data) || data.subjectIds is list) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidSubject(data) {
+      return data.subjectId is string && data.subjectId.size() > 0 && data.subjectId.size() <= 64 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.code is string && data.code.size() > 0 && data.code.size() <= 32 &&
+             (!('teacherIds' in data) || data.teacherIds is list) &&
+             (!('groupIds' in data) || data.groupIds is list) &&
+             (!('hoursTotal' in data) || data.hoursTotal is int) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidSemester(data) {
+      return data.semesterId is string && data.semesterId.size() > 0 && data.semesterId.size() <= 64 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.startDate is string && data.startDate.size() <= 32 &&
+             data.endDate is string && data.endDate.size() <= 32 &&
+             data.isCurrent is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidLesson(data) {
+      return data.lessonId is string && data.lessonId.size() > 0 && data.lessonId.size() <= 64 &&
+             data.subjectId is string && data.subjectId.size() > 0 && data.subjectId.size() <= 64 &&
+             data.subjectName is string && data.subjectName.size() > 0 && data.subjectName.size() <= 128 &&
+             data.groupId is string && data.groupId.size() > 0 && data.groupId.size() <= 64 &&
+             data.groupName is string && data.groupName.size() > 0 && data.groupName.size() <= 64 &&
+             data.teacherId is string && data.teacherId.size() > 0 && data.teacherId.size() <= 128 &&
+             (!('teacherName' in data) || (data.teacherName is string && data.teacherName.size() <= 128)) &&
+             data.date is string && data.date.size() <= 32 &&
+             data.startTime is string && data.startTime.size() <= 16 &&
+             data.endTime is string && data.endTime.size() <= 16 &&
+             (!('durationMinutes' in data) || data.durationMinutes is int) &&
+             data.status in ['SCHEDULED', 'ACTIVE', 'COMPLETED', 'CANCELLED'] &&
+             (!('lateThresholdMinutes' in data) || data.lateThresholdMinutes is int) &&
+             (!('qrToken' in data) || (data.qrToken is string && data.qrToken.size() <= 128)) &&
+             (!('qrExpiresAt' in data) || data.qrExpiresAt is timestamp) &&
+             (!('room' in data) || (data.room is string && data.room.size() <= 32)) &&
+             (!('topic' in data) || (data.topic is string && data.topic.size() <= 200)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidAttendance(data) {
+      return data.attendanceId is string && data.attendanceId.size() > 0 && data.attendanceId.size() <= 128 &&
+             data.lessonId is string && data.lessonId.size() > 0 && data.lessonId.size() <= 64 &&
+             data.studentUid is string && data.studentUid.size() > 0 && data.studentUid.size() <= 128 &&
+             (!('studentId' in data) || (data.studentId is string && data.studentId.size() <= 64)) &&
+             data.studentName is string && data.studentName.size() > 0 && data.studentName.size() <= 150 &&
+             data.groupId is string && data.groupId.size() > 0 && data.groupId.size() <= 64 &&
+             data.status in ['PRESENT', 'LATE', 'EXCUSED', 'UNEXCUSED', 'PENDING'] &&
+             data.registeredAt is timestamp && data.registeredAt <= request.time &&
+             (!('minutesLate' in data) || data.minutesLate is int) &&
+             data.markedBy in ['QR', 'TEACHER', 'ADMIN'] &&
+             (!('qrToken' in data) || (data.qrToken is string && data.qrToken.size() <= 128)) &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 300)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidAbsenceRequest(data) {
+      return data.requestId is string && data.requestId.size() > 0 && data.requestId.size() <= 64 &&
+             data.studentUid is string && data.studentUid.size() > 0 && data.studentUid.size() <= 128 &&
+             (!('studentId' in data) || (data.studentId is string && data.studentId.size() <= 64)) &&
+             data.studentName is string && data.studentName.size() > 0 && data.studentName.size() <= 150 &&
+             data.groupId is string && data.groupId.size() > 0 && data.groupId.size() <= 64 &&
+             (!('lessonId' in data) || (data.lessonId is string && data.lessonId.size() <= 64)) &&
+             (!('subjectName' in data) || (data.subjectName is string && data.subjectName.size() <= 128)) &&
+             data.date is string && data.date.size() <= 32 &&
+             data.reason is string && data.reason.size() > 0 && data.reason.size() <= 500 &&
+             (!('documentUrl' in data) || (data.documentUrl is string && data.documentUrl.size() <= 300)) &&
+             data.status in ['PENDING', 'APPROVED', 'REJECTED'] &&
+             (!('reviewComment' in data) || (data.reviewComment is string && data.reviewComment.size() <= 300)) &&
+             (!('reviewedBy' in data) || (data.reviewedBy is string && data.reviewedBy.size() <= 128)) &&
+             (!('reviewedAt' in data) || data.reviewedAt is timestamp) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidInvitation(data) {
+      return data.invitationId is string && data.invitationId.size() > 0 && data.invitationId.size() <= 64 &&
+             data.code is string && data.code.size() > 0 && data.code.size() <= 32 &&
+             data.groupId is string && data.groupId.size() > 0 && data.groupId.size() <= 64 &&
+             (!('studentId' in data) || (data.studentId is string && data.studentId.size() <= 64)) &&
+             data.studentName is string && data.studentName.size() > 0 && data.studentName.size() <= 150 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 128)) &&
+             data.role in ['STUDENT', 'TEACHER'] &&
+             data.isUsed is bool &&
+             (!('usedAt' in data) || data.usedAt is timestamp) &&
+             (!('usedBy' in data) || (data.usedBy is string && data.usedBy.size() <= 128)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidAuditLog(data) {
+      return data.logId is string && data.logId.size() > 0 && data.logId.size() <= 64 &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
+             data.userName is string && data.userName.size() > 0 && data.userName.size() <= 150 &&
+             (!('userRole' in data) || (data.userRole is string && data.userRole.size() <= 32)) &&
+             data.action is string && data.action.size() > 0 && data.action.size() <= 64 &&
+             data.details is string && data.details.size() <= 1000 &&
+             (!('targetId' in data) || (data.targetId is string && data.targetId.size() <= 128)) &&
+             data.timestamp is timestamp && data.timestamp <= request.time;
+    }
+
+    function isValidSyncLog(data) {
+      return data.syncId is string && data.syncId.size() > 0 && data.syncId.size() <= 64 &&
+             data.status in ['SUCCESS', 'ERROR', 'IN_PROGRESS'] &&
+             data.recordsCount is int &&
+             data.details is string && data.details.size() <= 1000 &&
+             data.timestamp is timestamp && data.timestamp <= request.time;
+    }
+
+    // ----------------------------------------------------
+    // COLLECTION RULES
+    // ----------------------------------------------------
+
+    // Admins bootstrap collection
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (
+        request.auth.token.email in ["ddauenov853@gmail.com", "damirffakk@gmail.com"] ||
+        isAdmin()
+      );
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() &&
+                       request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       (isAdmin() || incoming().role == 'STUDENT' || incoming().status == 'PENDING') &&
+                       isValidUser(incoming());
+      allow update: if isSignedIn() && isValidUser(incoming()) && (
+                       isAdmin() ||
+                       (request.auth.uid == userId &&
+                        incoming().userId == existing().userId &&
+                        incoming().createdAt == existing().createdAt)
+                     );
+      allow delete: if isAdmin();
+    }
+
+    // Groups collection
+    match /groups/{groupId} {
+      allow read: if isSignedIn();
+      allow create: if (isAdmin() || (isSignedIn() && groupId == 'po-2404')) && isValidGroup(incoming());
+      allow update, delete: if isAdmin() && isValidGroup(incoming());
+    }
+
+    // Subjects collection
+    match /subjects/{subjectId} {
+      allow read: if isSignedIn();
+      allow create: if (isAdmin() || (isSignedIn() && incoming().groupIds.hasAny(['po-2404']))) && isValidSubject(incoming());
+      allow update, delete: if isAdmin() && isValidSubject(incoming());
+    }
+
+    // Semesters collection
+    match /semesters/{semesterId} {
+      allow read: if isSignedIn();
+      allow create: if (isAdmin() || (isSignedIn() && semesterId == 'sem-2026-autumn')) && isValidSemester(incoming());
+      allow update, delete: if isAdmin() && isValidSemester(incoming());
+    }
+
+    // Lessons collection
+    match /lessons/{lessonId} {
+      allow read: if isSignedIn();
+      allow create: if (isAdmin() || isTeacher() || (isSignedIn() && incoming().teacherId == request.auth.uid)) &&
+                       isValidLesson(incoming());
+      allow update: if isValidLesson(incoming()) && (
+                       isAdmin() ||
+                       (isSignedIn() &&
+                        (existing().teacherId == request.auth.uid || isTeacher()) &&
+                        incoming().teacherId == existing().teacherId &&
+                        incoming().createdAt == existing().createdAt)
+                     );
+      allow delete: if isAdmin() || (isSignedIn() && existing().teacherId == request.auth.uid);
+    }
+
+    // Attendance collection
+    match /attendance/{attendanceId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() && isValidAttendance(incoming()) && (
+        isAdmin() ||
+        isTeacher() ||
+        (request.auth.uid == incoming().studentUid &&
+         incoming().markedBy == 'QR' &&
+         exists(/databases/$(database)/documents/lessons/$(incoming().lessonId)))
+      );
+
+      allow update: if isSignedIn() && isValidAttendance(incoming()) && (
+        isAdmin() ||
+        isTeacher()
+      ) && incoming().createdAt == existing().createdAt &&
+           incoming().lessonId == existing().lessonId &&
+           incoming().studentUid == existing().studentUid;
+
+      allow delete: if isAdmin();
+    }
+
+    // Absence Requests collection
+    match /absenceRequests/{requestId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() &&
+                       request.auth.uid == incoming().studentUid &&
+                       incoming().status == 'PENDING' &&
+                       isValidAbsenceRequest(incoming());
+
+      allow update: if isSignedIn() && isValidAbsenceRequest(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().studentUid == existing().studentUid && (
+                         isAdmin() ||
+                         isTeacher() ||
+                         (request.auth.uid == existing().studentUid &&
+                          existing().status == 'PENDING' &&
+                          incoming().status == 'PENDING' &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['reason', 'documentUrl', 'date', 'lessonId', 'subjectName', 'updatedAt']))
+                       );
+
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.studentUid == request.auth.uid && resource.data.status == 'PENDING');
+    }
+
+    // Invitations collection
+    match /invitations/{invitationId} {
+      allow read: if isSignedIn();
+      allow create: if (isAdmin() || (isSignedIn() && incoming().groupId == 'po-2404')) && isValidInvitation(incoming());
+      allow update: if isSignedIn() && isValidInvitation(incoming()) &&
+                       incoming().createdAt == existing().createdAt && (
+                         isAdmin() ||
+                         (existing().isUsed == false &&
+                          incoming().isUsed == true &&
+                          incoming().usedBy == request.auth.uid &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['isUsed', 'usedAt', 'usedBy']))
+                       );
+      allow delete: if isAdmin();
+    }
+
+    // Audit logs collection (append-only)
+    match /auditLogs/{logId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+                       isValidAuditLog(incoming()) &&
+                       incoming().userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Sync logs collection
+    match /syncLogs/{syncId} {
+      allow read: if isSignedIn();
+      allow create, update: if (isAdmin() || isTeacher()) && isValidSyncLog(incoming());
+      allow delete: if isAdmin();
+    }
+  }
+}

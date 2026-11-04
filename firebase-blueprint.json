@@ -1,0 +1,232 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role-based access for students, teachers, and admins",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Auth UID" },
+        "email": { "type": "string", "description": "Email address" },
+        "fullName": { "type": "string", "description": "Full name (ФИО)" },
+        "role": { "type": "string", "enum": ["STUDENT", "TEACHER", "ADMIN"], "description": "System role" },
+        "status": { "type": "string", "enum": ["ACTIVE", "PENDING", "DISABLED"], "description": "Account status" },
+        "groupId": { "type": "string", "description": "College group ID if student" },
+        "studentId": { "type": "string", "description": "Student card ID" },
+        "phone": { "type": "string", "description": "Phone number" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp via serverTimestamp" }
+      },
+      "required": ["userId", "email", "fullName", "role", "status", "createdAt"]
+    },
+    "Group": {
+      "title": "Group",
+      "description": "Academic study group, e.g. ПО-2404",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string", "description": "Unique group ID" },
+        "name": { "type": "string", "description": "Group name, e.g. ПО-2404" },
+        "code": { "type": "string", "description": "Short code, e.g. PO2404" },
+        "specialty": { "type": "string", "description": "Specialty code and name" },
+        "studentCount": { "type": "integer", "description": "Number of enrolled students" },
+        "teacherIds": { "type": "array", "description": "Assigned teacher UIDs" },
+        "subjectIds": { "type": "array", "description": "Assigned subject IDs" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["groupId", "name", "code", "createdAt"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Academic discipline/course",
+      "type": "object",
+      "properties": {
+        "subjectId": { "type": "string", "description": "Subject ID" },
+        "name": { "type": "string", "description": "Subject title" },
+        "code": { "type": "string", "description": "Subject code" },
+        "teacherIds": { "type": "array", "description": "Teacher IDs assigned" },
+        "groupIds": { "type": "array", "description": "Group IDs assigned" },
+        "hoursTotal": { "type": "integer", "description": "Total academic hours" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["subjectId", "name", "code", "createdAt"]
+    },
+    "Semester": {
+      "title": "Semester",
+      "description": "Academic term/semester",
+      "type": "object",
+      "properties": {
+        "semesterId": { "type": "string", "description": "Semester ID" },
+        "name": { "type": "string", "description": "Semester name" },
+        "startDate": { "type": "string", "description": "Start date YYYY-MM-DD" },
+        "endDate": { "type": "string", "description": "End date YYYY-MM-DD" },
+        "isCurrent": { "type": "boolean", "description": "Active semester flag" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["semesterId", "name", "startDate", "endDate", "isCurrent", "createdAt"]
+    },
+    "Lesson": {
+      "title": "Lesson",
+      "description": "Class session with dynamic QR code registration",
+      "type": "object",
+      "properties": {
+        "lessonId": { "type": "string", "description": "Lesson ID" },
+        "subjectId": { "type": "string", "description": "Subject ID" },
+        "subjectName": { "type": "string", "description": "Subject name" },
+        "groupId": { "type": "string", "description": "Group ID" },
+        "groupName": { "type": "string", "description": "Group name" },
+        "teacherId": { "type": "string", "description": "Teacher UID" },
+        "teacherName": { "type": "string", "description": "Teacher name" },
+        "date": { "type": "string", "description": "Date YYYY-MM-DD" },
+        "startTime": { "type": "string", "description": "Start time HH:mm" },
+        "endTime": { "type": "string", "description": "End time HH:mm" },
+        "durationMinutes": { "type": "integer", "description": "Duration in minutes" },
+        "status": { "type": "string", "enum": ["SCHEDULED", "ACTIVE", "COMPLETED", "CANCELLED"] },
+        "lateThresholdMinutes": { "type": "integer", "description": "Grace period in minutes before marked LATE" },
+        "qrToken": { "type": "string", "description": "Dynamic rolling security token" },
+        "qrExpiresAt": { "type": "string", "format": "date-time", "description": "Expiration time of current QR token" },
+        "room": { "type": "string", "description": "Classroom / cabinet" },
+        "topic": { "type": "string", "description": "Lesson topic" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["lessonId", "subjectId", "subjectName", "groupId", "groupName", "teacherId", "date", "startTime", "endTime", "status", "createdAt"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Attendance record for a student in a specific lesson",
+      "type": "object",
+      "properties": {
+        "attendanceId": { "type": "string", "description": "Unique key (lessonId_studentUid)" },
+        "lessonId": { "type": "string", "description": "Lesson ID" },
+        "studentUid": { "type": "string", "description": "Student user UID" },
+        "studentId": { "type": "string", "description": "Student number/card" },
+        "studentName": { "type": "string", "description": "Student full name" },
+        "groupId": { "type": "string", "description": "Group ID" },
+        "status": { "type": "string", "enum": ["PRESENT", "LATE", "EXCUSED", "UNEXCUSED", "PENDING"] },
+        "registeredAt": { "type": "string", "format": "date-time", "description": "Actual registration timestamp" },
+        "minutesLate": { "type": "integer", "description": "Minutes late relative to start + grace" },
+        "markedBy": { "type": "string", "enum": ["QR", "TEACHER", "ADMIN"], "description": "How attendance was marked" },
+        "qrToken": { "type": "string", "description": "Token used for validation" },
+        "note": { "type": "string", "description": "Teacher/Admin note" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["attendanceId", "lessonId", "studentUid", "studentName", "groupId", "status", "registeredAt", "markedBy", "createdAt"]
+    },
+    "AbsenceRequest": {
+      "title": "AbsenceRequest",
+      "description": "Student absence justification petition",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string", "description": "Request ID" },
+        "studentUid": { "type": "string", "description": "Student user UID" },
+        "studentId": { "type": "string", "description": "Student ID" },
+        "studentName": { "type": "string", "description": "Student full name" },
+        "groupId": { "type": "string", "description": "Group ID" },
+        "lessonId": { "type": "string", "description": "Target lesson ID (or multiple)" },
+        "subjectName": { "type": "string", "description": "Subject name" },
+        "date": { "type": "string", "description": "Date of absence" },
+        "reason": { "type": "string", "description": "Reason text" },
+        "documentUrl": { "type": "string", "description": "Supporting document link / file note" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "reviewComment": { "type": "string", "description": "Review comment" },
+        "reviewedBy": { "type": "string", "description": "Reviewer name/UID" },
+        "reviewedAt": { "type": "string", "format": "date-time", "description": "Review timestamp" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["requestId", "studentUid", "studentName", "groupId", "date", "reason", "status", "createdAt"]
+    },
+    "Invitation": {
+      "title": "Invitation",
+      "description": "One-time invitation code for student or teacher onboarding",
+      "type": "object",
+      "properties": {
+        "invitationId": { "type": "string", "description": "Invitation ID" },
+        "code": { "type": "string", "description": "One-time access code" },
+        "groupId": { "type": "string", "description": "Group ID" },
+        "studentId": { "type": "string", "description": "Student ID" },
+        "studentName": { "type": "string", "description": "Student full name" },
+        "email": { "type": "string", "description": "Assigned email" },
+        "role": { "type": "string", "enum": ["STUDENT", "TEACHER"] },
+        "isUsed": { "type": "boolean", "description": "Whether invitation has been consumed" },
+        "usedAt": { "type": "string", "format": "date-time", "description": "When consumed" },
+        "usedBy": { "type": "string", "description": "UID that consumed this invitation" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["invitationId", "code", "groupId", "studentName", "role", "isUsed", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System action history and status change log",
+      "type": "object",
+      "properties": {
+        "logId": { "type": "string", "description": "Log ID" },
+        "userId": { "type": "string", "description": "Actor user UID" },
+        "userName": { "type": "string", "description": "Actor user name" },
+        "userRole": { "type": "string", "description": "Actor role" },
+        "action": { "type": "string", "description": "Action performed" },
+        "details": { "type": "string", "description": "Description and delta" },
+        "targetId": { "type": "string", "description": "Target document ID" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Event timestamp" }
+      },
+      "required": ["logId", "userId", "userName", "action", "timestamp"]
+    },
+    "SyncLog": {
+      "title": "SyncLog",
+      "description": "Log of college API sync operations",
+      "type": "object",
+      "properties": {
+        "syncId": { "type": "string", "description": "Sync run ID" },
+        "status": { "type": "string", "enum": ["SUCCESS", "ERROR", "IN_PROGRESS"] },
+        "recordsCount": { "type": "integer", "description": "Processed records" },
+        "details": { "type": "string", "description": "Result summary or error message" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Sync timestamp" }
+      },
+      "required": ["syncId", "status", "recordsCount", "details", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/groups/{groupId}": {
+      "schema": { "$ref": "#/entities/Group" },
+      "description": "Academic groups"
+    },
+    "/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "Academic subjects"
+    },
+    "/semesters/{semesterId}": {
+      "schema": { "$ref": "#/entities/Semester" },
+      "description": "Semesters"
+    },
+    "/lessons/{lessonId}": {
+      "schema": { "$ref": "#/entities/Lesson" },
+      "description": "Lesson class sessions"
+    },
+    "/attendance/{attendanceId}": {
+      "schema": { "$ref": "#/entities/Attendance" },
+      "description": "Attendance entries"
+    },
+    "/absenceRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/AbsenceRequest" },
+      "description": "Student absence petitions"
+    },
+    "/invitations/{invitationId}": {
+      "schema": { "$ref": "#/entities/Invitation" },
+      "description": "Single-use student and teacher invitations"
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Administrative audit trail"
+    },
+    "/syncLogs/{syncId}": {
+      "schema": { "$ref": "#/entities/SyncLog" },
+      "description": "College integration sync logs"
+    }
+  }
+}
