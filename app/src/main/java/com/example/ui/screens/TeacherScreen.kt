@@ -104,6 +104,7 @@ fun TeacherScreen(
     val activeLesson = lessons.firstOrNull { it.status == "ACTIVE" }
     var selectedLessonForDetails by remember { mutableStateOf<Lesson?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showSubjectManagementDialog by remember { mutableStateOf(false) }
 
     // If an active lesson exists and none selected, auto-select it for live monitor
     val displayedLesson = selectedLessonForDetails ?: activeLesson
@@ -228,7 +229,25 @@ fun TeacherScreen(
                         HorizontalDivider()
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        Text("Предметы кафедры:", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Мои предметы:", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            TextButton(onClick = { showSubjectManagementDialog = true }) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Добавить")
+                            }
+                        }
+                        if (subjects.isEmpty()) {
+                            Text(
+                                "Предметов пока нет. Нажмите «Добавить», чтобы создать первый.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Spacer(modifier = Modifier.height(6.dp))
                         subjects.forEach { subject ->
                             Row(
@@ -271,6 +290,14 @@ fun TeacherScreen(
                     )
                 }
             }
+        }
+
+        if (showSubjectManagementDialog) {
+            SubjectManagementDialog(
+                subjects = subjects,
+                repository = repository,
+                onDismiss = { showSubjectManagementDialog = false }
+            )
         }
 
         if (showCreateDialog) {
