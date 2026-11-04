@@ -76,7 +76,6 @@ import com.example.data.model.Lesson
 import com.example.data.model.Subject
 import com.example.data.model.UserProfile
 import com.example.data.repository.AttendanceRepository
-import com.example.ui.screens.SubjectManagementDialog
 import com.example.ui.components.StatCard
 import com.example.ui.components.StatusBadge
 import com.example.ui.theme.CobaltBlue
