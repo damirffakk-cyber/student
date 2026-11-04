@@ -221,11 +221,21 @@ service cloud.firestore {
       allow update, delete: if isAdmin() && isValidGroup(incoming());
     }
 
-    // Subjects collection
+    // Subjects collection: admins manage all subjects; teachers manage subjects assigned to them.
     match /subjects/{subjectId} {
       allow read: if isSignedIn();
-      allow create: if (isAdmin() || (isSignedIn() && incoming().groupIds.hasAny(['po-2404']))) && isValidSubject(incoming());
-      allow update, delete: if isAdmin() && isValidSubject(incoming());
+      allow create: if isValidSubject(incoming()) && (
+        isAdmin() ||
+        (isTeacher() && incoming().teacherIds.hasAny([request.auth.uid]))
+      );
+      allow update: if isValidSubject(incoming()) && (
+        isAdmin() ||
+        (isTeacher() &&
+         existing().teacherIds.hasAny([request.auth.uid]) &&
+         incoming().teacherIds.hasAny([request.auth.uid]))
+      );
+      allow delete: if isAdmin() ||
+        (isTeacher() && existing().teacherIds.hasAny([request.auth.uid]));
     }
 
     // Semesters collection
