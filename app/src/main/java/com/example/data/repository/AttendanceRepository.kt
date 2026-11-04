@@ -137,25 +137,83 @@ class AttendanceRepository(private val db: FirebaseFirestore) {
     }
 
     suspend fun createSubject(subject: Subject) {
-        val path = "subjects/${subject.subjectId}"
+        val uid = requireUserId()
+        val subjectId = subject.subjectId.ifBlank { "sub_${UUID.randomUUID().toString().take(12)}" }
+        val normalizedName = subject.name.trim()
+        require(normalizedName.isNotEmpty()) { "Введите название предмета" }
+        val duplicate = db.collection("subjects").get().await().documents.any {
+            it.id != subjectId && (it.getString("name") ?: "").trim().equals(normalizedName, ignoreCase = true)
+        }
+        require(!duplicate) { "Предмет с таким названием уже существует" }
+
+        val savedSubject = subject.copy(
+            subjectId = subjectId,
+            name = normalizedName,
+            code = subject.code.ifBlank { "SUB-${subjectId.takeLast(8).uppercase()}" },
+            teacherIds = (subject.teacherIds + uid).distinct(),
+            groupIds = (subject.groupIds.ifEmpty { listOf("po-2404") }).distinct()
+        )
+        val path = "subjects/$subjectId"
         try {
             val payload = hashMapOf<String, Any?>(
-                "subjectId" to subject.subjectId,
-                "name" to subject.name,
-                "code" to subject.code,
-                "teacherIds" to subject.teacherIds,
-                "groupIds" to subject.groupIds,
-                "hoursTotal" to subject.hoursTotal,
+                "subjectId" to savedSubject.subjectId,
+                "name" to savedSubject.name,
+                "code" to savedSubject.code,
+                "teacherIds" to savedSubject.teacherIds,
+                "groupIds" to savedSubject.groupIds,
+                "hoursTotal" to savedSubject.hoursTotal,
                 "createdAt" to FieldValue.serverTimestamp(),
                 "updatedAt" to FieldValue.serverTimestamp()
-            ).filterValues { it != null }
-
-            db.collection("subjects").document(subject.subjectId).set(payload).await()
-            logAction("CREATE_SUBJECT", "Создан предмет ${subject.name}", subject.subjectId)
+            )
+            db.collection("subjects").document(subjectId).set(payload).await()
+            logAction("CREATE_SUBJECT", "Создан предмет ${savedSubject.name}", subjectId)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.CREATE, path)
+            throw e
+        }
+    }
+
+    suspend fun updateSubject(subject: Subject) {
+        val uid = requireUserId()
+        val normalizedName = subject.name.trim()
+        require(normalizedName.isNotEmpty()) { "Введите название предмета" }
+        val duplicate = db.collection("subjects").get().await().documents.any {
+            it.id != subject.subjectId && (it.getString("name") ?: "").trim().equals(normalizedName, ignoreCase = true)
+        }
+        require(!duplicate) { "Предмет с таким названием уже существует" }
+
+        val path = "subjects/${subject.subjectId}"
+        try {
+            db.collection("subjects").document(subject.subjectId).update(
+                mapOf(
+                    "name" to normalizedName,
+                    "code" to subject.code,
+                    "teacherIds" to (subject.teacherIds + uid).distinct(),
+                    "groupIds" to subject.groupIds.ifEmpty { listOf("po-2404") },
+                    "hoursTotal" to subject.hoursTotal,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+            logAction("UPDATE_SUBJECT", "Изменено название предмета $normalizedName", subject.subjectId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, path)
+            throw e
+        }
+    }
+
+    suspend fun deleteSubject(subject: Subject) {
+        val path = "subjects/${subject.subjectId}"
+        try {
+            db.collection("subjects").document(subject.subjectId).delete().await()
+            logAction("DELETE_SUBJECT", "Удалён предмет ${subject.name}", subject.subjectId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, path)
             throw e
         }
     }
